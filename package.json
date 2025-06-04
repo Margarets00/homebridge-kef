@@ -2,7 +2,7 @@
   "private": false,
   "displayName": "Homebridge KEF",
   "name": "homebridge-kef",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Homebridge plugin for KEF speakers (LS50WII, LSX II, LS60)",
   "license": "MIT",
   "repository": {
