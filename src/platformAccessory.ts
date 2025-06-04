@@ -1,100 +1,83 @@
-import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
-
-import type { ExampleHomebridgePlatform } from './platform.js';
+import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
+import { KefHomebridgePlatform } from './platform';
+import { KefSpeaker } from './kefSpeaker';
 
 /**
  * Platform Accessory
  * An instance of this class is created for each accessory your platform registers
  * Each accessory may expose multiple services of different service types.
  */
-export class ExamplePlatformAccessory {
-  private service: Service;
-
-  /**
-   * These are just used to create a working example
-   * You should implement your own code to track the state of your accessory
-   */
-  private exampleStates = {
-    On: false,
-    Brightness: 100,
-  };
+export class KefPlatformAccessory {
+  private speakerService: Service;
+  private volumeService: Service;
+  private kefSpeaker: KefSpeaker;
+  private pollingInterval!: NodeJS.Timeout;
 
   constructor(
-    private readonly platform: ExampleHomebridgePlatform,
+    private readonly platform: KefHomebridgePlatform,
     private readonly accessory: PlatformAccessory,
+    private readonly config: {
+      ip: string;
+      pollingInterval: number;
+    },
   ) {
-    // set accessory information
+    this.kefSpeaker = new KefSpeaker(config.ip);
+
+    // Set accessory information
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Default-Manufacturer')
-      .setCharacteristic(this.platform.Characteristic.Model, 'Default-Model')
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'KEF')
+      .setCharacteristic(this.platform.Characteristic.Model, accessory.context.model)
       .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Default-Serial');
 
-    // get the LightBulb service if it exists, otherwise create a new LightBulb service
-    // you can create multiple services for each accessory
+    // Speaker service (for power control)
+    this.speakerService = this.accessory.getService(this.platform.Service.Speaker) || 
+      this.accessory.addService(this.platform.Service.Speaker);
 
-    if (accessory.context.device.CustomService) {
-      // This is only required when using Custom Services and Characteristics not support by HomeKit
-      this.service = this.accessory.getService(this.platform.CustomServices[accessory.context.device.CustomService]) ||
-        this.accessory.addService(this.platform.CustomServices[accessory.context.device.CustomService]);
-    } else {
-      this.service = this.accessory.getService(this.platform.Service.Lightbulb) || this.accessory.addService(this.platform.Service.Lightbulb);
-    }
+    this.speakerService.setCharacteristic(this.platform.Characteristic.Name, accessory.context.name);
 
-    // set the service name, this is what is displayed as the default name on the Home app
-    // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
-    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.exampleDisplayName);
+    this.speakerService.getCharacteristic(this.platform.Characteristic.On)
+      .onSet(this.setOn.bind(this))
+      .onGet(this.getOn.bind(this));
 
-    // each service must implement at-minimum the "required characteristics" for the given service type
-    // see https://developers.homebridge.io/#/service/Lightbulb
+    this.speakerService.getCharacteristic(this.platform.Characteristic.Mute)
+      .onSet(this.setMute.bind(this))
+      .onGet(this.getMute.bind(this));
 
-    // register handlers for the On/Off Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.setOn.bind(this)) // SET - bind to the `setOn` method below
-      .onGet(this.getOn.bind(this)); // GET - bind to the `getOn` method below
+    // Volume service
+    this.volumeService = this.accessory.getService(this.platform.Service.Lightbulb) ||
+      this.accessory.addService(this.platform.Service.Lightbulb, 'Volume', 'volume');
 
-    // register handlers for the Brightness Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.Brightness)
-      .onSet(this.setBrightness.bind(this)); // SET - bind to the `setBrightness` method below
+    this.volumeService.getCharacteristic(this.platform.Characteristic.On)
+      .onSet(this.setVolumeOn.bind(this))
+      .onGet(this.getVolumeOn.bind(this));
 
-    /**
-     * Creating multiple services of the same type.
-     *
-     * To avoid "Cannot add a Service with the same UUID another Service without also defining a unique 'subtype' property." error,
-     * when creating multiple services of the same type, you need to use the following syntax to specify a name and subtype id:
-     * this.accessory.getService('NAME') || this.accessory.addService(this.platform.Service.Lightbulb, 'NAME', 'USER_DEFINED_SUBTYPE_ID');
-     *
-     * The USER_DEFINED_SUBTYPE must be unique to the platform accessory (if you platform exposes multiple accessories, each accessory
-     * can use the same subtype id.)
-     */
+    this.volumeService.getCharacteristic(this.platform.Characteristic.Brightness)
+      .onSet(this.setVolume.bind(this))
+      .onGet(this.getVolume.bind(this));
 
-    // Example: add two "motion sensor" services to the accessory
-    const motionSensorOneService = this.accessory.getService('Motion Sensor One Name')
-      || this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor One Name', 'YourUniqueIdentifier-1');
+    // Start polling
+    this.startPolling();
+  }
 
-    const motionSensorTwoService = this.accessory.getService('Motion Sensor Two Name')
-      || this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor Two Name', 'YourUniqueIdentifier-2');
+  private startPolling() {
+    this.pollingInterval = setInterval(async () => {
+      try {
+        const status = await this.kefSpeaker.getStatus();
+        const volume = await this.kefSpeaker.getVolume();
 
-    /**
-     * Updating characteristics values asynchronously.
-     *
-     * Example showing how to update the state of a Characteristic asynchronously instead
-     * of using the `on('get')` handlers.
-     * Here we change update the motion sensor trigger states on and off every 10 seconds
-     * the `updateCharacteristic` method.
-     *
-     */
-    let motionDetected = false;
-    setInterval(() => {
-      // EXAMPLE - inverse the trigger
-      motionDetected = !motionDetected;
+        this.speakerService.updateCharacteristic(
+          this.platform.Characteristic.On,
+          status === 'powerOn',
+        );
 
-      // push the new value to HomeKit
-      motionSensorOneService.updateCharacteristic(this.platform.Characteristic.MotionDetected, motionDetected);
-      motionSensorTwoService.updateCharacteristic(this.platform.Characteristic.MotionDetected, !motionDetected);
-
-      this.platform.log.debug('Triggering motionSensorOneService:', motionDetected);
-      this.platform.log.debug('Triggering motionSensorTwoService:', !motionDetected);
-    }, 10000);
+        this.volumeService.updateCharacteristic(
+          this.platform.Characteristic.Brightness,
+          volume,
+        );
+      } catch (error) {
+        this.platform.log.error('Error polling speaker status:', error);
+      }
+    }, this.config.pollingInterval * 1000);
   }
 
   /**
@@ -102,10 +85,15 @@ export class ExamplePlatformAccessory {
    * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
    */
   async setOn(value: CharacteristicValue) {
-    // implement your own code to turn your device on/off
-    this.exampleStates.On = value as boolean;
-
-    this.platform.log.debug('Set Characteristic On ->', value);
+    try {
+      if (value) {
+        await this.kefSpeaker.powerOn();
+      } else {
+        await this.kefSpeaker.shutdown();
+      }
+    } catch (error) {
+      this.platform.log.error('Error setting power state:', error);
+    }
   }
 
   /**
@@ -124,25 +112,71 @@ export class ExamplePlatformAccessory {
    * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
    */
   async getOn(): Promise<CharacteristicValue> {
-    // implement your own code to check if the device is on
-    const isOn = this.exampleStates.On;
-
-    this.platform.log.debug('Get Characteristic On ->', isOn);
-
-    // if you need to return an error to show the device as "Not Responding" in the Home app:
-    // throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
-
-    return isOn;
+    try {
+      const status = await this.kefSpeaker.getStatus();
+      return status === 'powerOn';
+    } catch (error) {
+      this.platform.log.error('Error getting power state:', error);
+      return false;
+    }
   }
 
-  /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, changing the Brightness
-   */
-  async setBrightness(value: CharacteristicValue) {
-    // implement your own code to set the brightness
-    this.exampleStates.Brightness = value as number;
+  async setMute(value: CharacteristicValue) {
+    try {
+      if (value) {
+        await this.kefSpeaker.mute();
+      } else {
+        await this.kefSpeaker.unmute();
+      }
+    } catch (error) {
+      this.platform.log.error('Error setting mute state:', error);
+    }
+  }
 
-    this.platform.log.debug('Set Characteristic Brightness -> ', value);
+  async getMute(): Promise<CharacteristicValue> {
+    try {
+      const volume = await this.kefSpeaker.getVolume();
+      return volume === 0;
+    } catch (error) {
+      this.platform.log.error('Error getting mute state:', error);
+      return false;
+    }
+  }
+
+  async setVolumeOn(value: CharacteristicValue) {
+    if (!value) {
+      try {
+        await this.kefSpeaker.setVolume(0);
+      } catch (error) {
+        this.platform.log.error('Error setting volume to 0:', error);
+      }
+    }
+  }
+
+  async getVolumeOn(): Promise<CharacteristicValue> {
+    try {
+      const volume = await this.kefSpeaker.getVolume();
+      return volume > 0;
+    } catch (error) {
+      this.platform.log.error('Error getting volume state:', error);
+      return false;
+    }
+  }
+
+  async setVolume(value: CharacteristicValue) {
+    try {
+      await this.kefSpeaker.setVolume(value as number);
+    } catch (error) {
+      this.platform.log.error('Error setting volume:', error);
+    }
+  }
+
+  async getVolume(): Promise<CharacteristicValue> {
+    try {
+      return await this.kefSpeaker.getVolume();
+    } catch (error) {
+      this.platform.log.error('Error getting volume:', error);
+      return 0;
+    }
   }
 }

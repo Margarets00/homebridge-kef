@@ -1,46 +1,58 @@
 {
-  "name": "homebridge-plugin-name",
-  "displayName": "Plugin Name",
-  "type": "module",
+  "private": false,
+  "displayName": "Homebridge KEF",
+  "name": "homebridge-kef",
   "version": "1.0.0",
-  "private": true,
-  "description": "A short description about what your plugin does.",
-  "author": "Your Name",
-  "license": "Apache-2.0",
-  "homepage": "https://github.com/USERNAME/GITHUB_PROJECT_NAME#readme",
+  "description": "Homebridge plugin for KEF speakers (LS50WII, LSX II, LS60)",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME.git"
+    "url": "git://github.com/yourusername/homebridge-kef.git"
   },
   "bugs": {
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME/issues"
+    "url": "https://github.com/yourusername/homebridge-kef/issues"
+  },
+  "engines": {
+    "node": "^18.17.0 || ^20.9.0",
+    "homebridge": "^1.6.0"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "lint": "eslint src/**.ts --max-warnings=0",
+    "watch": "npm run build && npm link && nodemon",
+    "build": "rimraf ./dist && tsc",
+    "prepublishOnly": "npm run lint && npm run build",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [
-    "homebridge-plugin"
+    "homebridge-plugin",
+    "kef",
+    "ls50",
+    "lsx",
+    "ls60",
+    "speaker",
+    "audio"
   ],
-  "main": "dist/index.js",
-  "engines": {
-    "node": "^18.20.4 || ^20.18.0 || ^22.10.0",
-    "homebridge": "^1.8.0 || ^2.0.0-beta.0"
-  },
-  "scripts": {
-    "build": "rimraf ./dist && tsc",
-    "lint": "eslint . --max-warnings=0",
-    "prepublishOnly": "npm run lint && npm run build",
-    "watch": "npm run build && npm link && nodemon"
-  },
   "dependencies": {
-    "homebridge-lib": "^7.1.4"
+    "node-fetch": "^2.6.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.21.0",
-    "@types/node": "^22.13.5",
-    "eslint": "^9.21.0",
-    "homebridge": "^2.0.0-beta.0",
-    "nodemon": "^3.1.9",
-    "rimraf": "^6.0.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.3",
-    "typescript-eslint": "^8.24.1"
+    "@types/jest": "^29.5.12",
+    "@types/node": "^18.19.110",
+    "@types/node-fetch": "^2.6.12",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "eslint": "^8.45.0",
+    "homebridge": "^1.6.0",
+    "homebridge-lib": "^7.1.5",
+    "jest": "^29.7.0",
+    "jest-fetch-mock": "^3.0.3",
+    "nodemon": "^2.0.22",
+    "rimraf": "^3.0.2",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.9.5"
   }
 }

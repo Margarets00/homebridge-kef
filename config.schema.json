@@ -1,8 +1,7 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "KefPlatform",
   "pluginType": "platform",
   "singular": true,
-  "strictValidation": false,
   "schema": {
     "type": "object",
     "properties": {
@@ -10,7 +9,49 @@
         "title": "Name",
         "type": "string",
         "required": true,
-        "default": "Example Dynamic Platform"
+        "default": "KEF Platform"
+      },
+      "speakers": {
+        "type": "array",
+        "title": "KEF Speakers",
+        "required": true,
+        "items": {
+          "title": "Speaker",
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Speaker Name",
+              "type": "string",
+              "required": true,
+              "default": "KEF Speaker"
+            },
+            "ip": {
+              "title": "IP Address",
+              "type": "string",
+              "required": true,
+              "format": "ipv4",
+              "placeholder": "192.168.1.100"
+            },
+            "model": {
+              "title": "Speaker Model",
+              "type": "string",
+              "required": true,
+              "default": "LS50WII",
+              "oneOf": [
+                { "title": "LS50 Wireless II", "enum": ["LS50WII"] },
+                { "title": "LSX II", "enum": ["LSXII"] },
+                { "title": "LS60", "enum": ["LS60"] }
+              ]
+            },
+            "pollingInterval": {
+              "title": "Status Polling Interval (seconds)",
+              "type": "integer",
+              "minimum": 5,
+              "maximum": 60,
+              "default": 10
+            }
+          }
+        }
       }
     }
   }
